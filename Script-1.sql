@@ -340,3 +340,140 @@ where name = 'Pranay Shah';
 select * from customers;
 
 
+--------------------------------------------------------------------------------------------------
+-- OVER - WINDOW FUNCTION 
+--------------------------------------------------------------------------------------------------
+
+create table orders(
+	order_id serial primary key,
+	customer_id integer not null, 
+	order_date date not null,
+	order_total decimal(10,2) not null
+);
+
+
+insert into orders(customer_id, order_date, order_total) values (1,'2022-01-01', 100.00),
+																(1,'2022-02-02', 50.00),
+																(1, '2022-03-01', 75.00),
+																  (2, '2022-01-15', 200.00),
+																  (2, '2022-02-15', 150.00),
+																  (3, '2022-01-31', 75.00),
+																  (3, '2022-02-28', 100.00),
+																  (3, '2022-03-31', 50.00);
+-- --------------------------------------------------
+select * from orders;
+
+
+select  *, sum(order_total) over(order by order_date) as Totalorder_by_customer
+from orders;
+
+
+
+
+with temp as (
+	select order_id, customer_id, order_date, order_total, max(order_total) over(partition by customer_id) as max_order_per_cust
+	from orders o
+)
+select * from temp 
+where order_total = max_order_per_cust;
+
+select order_id, customer_id, order_date, order_total
+from orders o 
+qualify row_number() over(partition by customer_id order by order_total desc) = 1;
+
+--------------------------------------------------------------------------------------------------
+-- Lateral Joins
+--------------------------------------------------------------------------------------------------
+
+CREATE TABLE users (
+  user_id SERIAL PRIMARY KEY,
+  username VARCHAR(50) NOT NULL,
+  email VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE orders1 (
+  order_id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(user_id),
+  order_date DATE NOT NULL,
+  total_amount NUMERIC(10,2) NOT NULL
+);
+
+INSERT INTO users (username, email) VALUES
+  ('alice', 'alice@example.com'),
+  ('bob', 'bob@example.com'),
+  ('charlie', 'charlie@example.com');
+
+INSERT INTO orders1 (user_id, order_date, total_amount) VALUES
+  (1, '2022-04-01', 50.00),
+  (1, '2022-03-15', 25.00),
+  (2, '2022-04-02', 100.00),
+  (3, '2022-04-01', 75.00),
+  (3, '2022-03-20', 30.00),
+  (3, '2022-03-01', 20.00);
+
+
+select * from orders1;
+select * from users;
+
+
+-- Uisng lateral
+
+select 	u.username,o.order_id, o.order_date
+from users u 
+left join lateral (
+select order_id, order_date
+from orders1
+where user_id = u.user_id
+order by order_date desc limit 1
+)o on true;
+
+
+--------------------------------------------------------------------------------------------------
+-- Normalized tbale 
+--------------------------------------------------------------------------------------------------
+
+create table class_unnormalized (
+	student_id serial, 
+	advisor varchar,
+	room varchar,
+	class1 varchar, 
+	class2 varchar,
+	class3 varchar
+);
+
+insert into class_unnormalized (
+	advisor,
+	room, 
+	class1,
+	class2,
+	class3
+) values(
+	'Jones', 123, 'Biology', 'Chemistry', 'Physics'
+), ('Smith', 131, 'English', 'Math', 'Library Science');
+
+-- Unormalized form of table
+
+select * from class_unnormalized;
+
+-- First Normal Form 
+select c.student_id, c.advisor, c.room, t.*
+from class_unnormalized c 
+	cross join lateral (values 
+	(c.class1, 'class1'),
+	(c.class2, 'class2'),
+	(c.class3, 'class3')) as t(student, class_num)
+order by student_id;
+
+
+-- Using window function 
+
+select distinct 
+	u.username,
+	first_value (o.order_id) over(partition by u.user_id order by o.order_date desc) as Order_id, 
+	first_value (o.order_date) over(partition by u.user_id order by o.order_date desc) as order_date
+from users u
+left join orders1 o on u.user_id = 	o.user_id;
+
+
+select * from orders1;
+
